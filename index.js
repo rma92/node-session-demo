@@ -86,7 +86,8 @@ app.get("/logout", function(req, res)
   return res.send(szOut);
 })
 
-// Logon endpoint
+// Logon endpoint -- synchronous
+/*
 app.get("/logon", function(req, res)
 {
     var szSessionResult = session_start(req);
@@ -123,6 +124,44 @@ app.get("/logon", function(req, res)
             return res.status(401).send('Invalid username or password.');
         }
     });
+});
+*/
+//Logon endpoint -- async
+app.get("/logon", async function(req, res) {
+    const { username, password, redirect } = req.query;
+
+    // Check if username and password are provided
+    if (!username || !password) {
+        return res.status(400).send('Username and password are required.');
+    }
+
+    try {
+        // Query the database for the provided username and password
+        const row = await new Promise((resolve, reject) => {
+            db.get("SELECT * FROM users WHERE username = ? AND password = ?", [username, password], (err, row) => {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve(row);
+                }
+            });
+        });
+
+        // If user exists, set session and redirect
+        if (row) {
+            req.session.username = username;
+            if (redirect) {
+                return res.redirect(redirect || '/');
+            } else {
+                return res.send(`Login successful. <a href='/'>Continue</a>.`);
+            }
+        } else {
+            return res.status(401).send('Invalid username or password.');
+        }
+    } catch (err) {
+        console.error(err.message);
+        return res.status(500).send('Internal Server Error.');
+    }
 });
 
 // Handle application errors - these can only happen from above
