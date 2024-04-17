@@ -37,7 +37,7 @@ app.use(session(
 /*
   Creates a session if needed, and returns a string describing what happened.
 */
-function start_session(req)
+function session_start(req)
 {
   // req.session.key = value
   if (!req.session.name)
@@ -66,29 +66,30 @@ function is_session_set()
   }
 }
 
-app.get("/", function(req, res)
-{
-  var szResult = start_session(req);
-  return res.send(szResult);
-})
-
 app.get("/session", function(req, res)
 {
-  res.send("The current session is :" + req.session.name);
+  var szOut = "The current session is :" + req.session.name;
+  if( req.session.username )
+  {
+    szOut += "\nThe current username is :" + req.session.username;
+  }
+  return res.send(szOut);
 })
 
 app.get("/logout", function(req, res)
 {
-   req.session.destroy(function(error)
-   {
-      console.log("Session Destroyed")
+  var szOut = "Session Destroyed.<a href='/'>Continue</a>.";
+  req.session.destroy(function(error)
+  {
+    console.log("Session Destroyed")
   })
-  return res.send("Session Destroyed");
+  return res.send(szOut);
 })
 
 // Logon endpoint
 app.get("/logon", function(req, res)
 {
+    var szSessionResult = session_start(req);
     const { username, password, redirect } = req.query;
 
     // Check if username and password are provided
@@ -108,13 +109,27 @@ app.get("/logon", function(req, res)
         if (row)
         {
             req.session.username = username;
-            return res.redirect(redirect || '/');
+            if( redirect )
+            {
+              return res.redirect(redirect || '/');
+            }
+            else
+            {
+              return res.send(`Login successful. <a href='/'>Continue</a>.`);
+            }
         }
         else
         {
             return res.status(401).send('Invalid username or password.');
         }
     });
+});
+
+// Handle application errors - these can only happen from above
+app.use(function(err, req, res, next)
+{
+    console.error(err.stack);
+    res.status(500).send('Internal Server Error.');
 });
 
 // serve static files from the public directory
@@ -126,12 +141,6 @@ app.use(function(req, res, next)
     res.status(404).sendFile(path.join(__dirname, 'public', '404.html'));
 });
 
-// Handle errors
-app.use(function(err, req, res, next)
-{
-    console.error(err.stack);
-    res.status(500).send('Internal Server Error.');
-});
 
 app.listen(PORT, function(error)
 {
