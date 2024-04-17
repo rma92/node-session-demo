@@ -17,7 +17,11 @@ app.use(session(
   // to be saved to the store
   saveUninitialized: true
 }))
-app.get("/", function(req, res)
+
+/*
+  Creates a session if needed, and returns a string describing what happened.
+*/
+function start_session(req)
 {
   // req.session.key = value
   if (!req.session.name)
@@ -26,12 +30,30 @@ app.get("/", function(req, res)
       const timestamp = Date.now();
       const randomHash = md5(Math.random().toString());
       req.session.name = `${timestamp}-${randomHash}`;
-      return res.send("Session Set")
+      return "Created session: " + req.session.name;
   }
   else
   {
-      res.send("The current session is :" + req.session.name);
+      return "The current session is :" + req.session.name;
   }
+}
+
+function is_session_set()
+{
+  if (!req.session.name)
+  {
+    return false;
+  }
+  else
+  {
+    return true;
+  }
+}
+
+app.get("/", function(req, res)
+{
+  var szResult = start_session(req);
+  return res.send(szResult);
 })
 
 app.get("/session", function(req, res)
