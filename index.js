@@ -1,9 +1,25 @@
 const express = require("express")
 const session = require('express-session')
 const md5 = require('md5');
+const sqlite3 = require('sqlite3').verbose();
+const path = require('path');
+
 const app = express()
 
 var PORT = process.env.port || 3000
+
+// Connect to SQLite database
+const dbPath = path.join(__dirname, 'db.db');
+const db = new sqlite3.Database(dbPath);
+
+  db.run("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, username TEXT, password TEXT)");
+  //Create the demo user if the user does not exist.
+  db.run(`
+INSERT INTO users (username, password)
+SELECT 'user1', 'password'
+WHERE NOT EXISTS (
+    SELECT 1 FROM users WHERE username = 'user1'
+);`);
 
 // Session Setup
 app.use(session(
@@ -69,6 +85,53 @@ app.get("/logout", function(req, res)
   })
   return res.send("Session Destroyed");
 })
+
+// Logon endpoint
+app.get("/logon", function(req, res)
+{
+    const { username, password, redirect } = req.query;
+
+    // Check if username and password are provided
+    if (!username || !password)
+    {
+        return res.status(400).send('Username and password are required.');
+    }
+
+    // Query the database for the provided username and password
+    db.get("SELECT * FROM users WHERE username = ? AND password = ?", [username, password], (err, row) => {
+        if (err)
+        {
+            console.error(err.message);
+            return res.status(500).send('Internal Server Error.');
+        }
+        // If user exists, set session and redirect
+        if (row)
+        {
+            req.session.username = username;
+            return res.redirect(redirect || '/');
+        }
+        else
+        {
+            return res.status(401).send('Invalid username or password.');
+        }
+    });
+});
+
+// serve static files from the public directory
+app.use(express.static('public'));
+
+// Handle 404 - Not Found
+app.use(function(req, res, next)
+{
+    res.status(404).sendFile(path.join(__dirname, 'public', '404.html'));
+});
+
+// Handle errors
+app.use(function(err, req, res, next)
+{
+    console.error(err.stack);
+    res.status(500).send('Internal Server Error.');
+});
 
 app.listen(PORT, function(error)
 {
